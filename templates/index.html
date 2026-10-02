@@ -11,7 +11,6 @@
           href="{{ url_for('static', filename='style.css') }}">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 </head>
 
 <body>
@@ -22,20 +21,105 @@
 
         <h1>Personal Expense Tracker</h1>
 
-        <p>Track and manage your daily expenses</p>
+        <p>Track and manage your income and daily expenses</p>
+
+        <p>
+            Welcome, {{ session_user_name if session_user_name else "" }}
+        </p>
+
+        <a href="/logout" class="delete-button">
+            Logout
+        </a>
 
     </header>
 
 
     <main>
 
-        <!-- Total Expense -->
+        <!-- Financial Summary -->
 
         <section class="total-expense">
 
-            <h2>Total Expenses</h2>
+            <h2>Financial Summary</h2>
 
-            <p>₹{{ "%.2f"|format(total_expense) }}</p>
+            <div class="category-container">
+
+                <div class="category-card">
+
+                    <h3>Total Income</h3>
+
+                    <p>
+                        ₹{{ "%.2f"|format(total_income) }}
+                    </p>
+
+                </div>
+
+
+                <div class="category-card">
+
+                    <h3>Total Expenses</h3>
+
+                    <p>
+                        ₹{{ "%.2f"|format(total_expense) }}
+                    </p>
+
+                </div>
+
+
+                <div class="category-card">
+
+                    <h3>Current Balance</h3>
+
+                    <p>
+                        ₹{{ "%.2f"|format(balance) }}
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- Add Income -->
+
+        <section class="expense-form">
+
+            <h2>Add Income</h2>
+
+            <form method="POST"
+                  action="/add_income">
+
+                <label>Income Name</label>
+
+                <input type="text"
+                       name="income_name"
+                       placeholder="Example: Salary"
+                       required>
+
+
+                <label>Amount</label>
+
+                <input type="number"
+                       name="amount"
+                       placeholder="Example: 25000"
+                       step="0.01"
+                       min="0"
+                       required>
+
+
+                <label>Date</label>
+
+                <input type="date"
+                       name="income_date"
+                       required>
+
+
+                <button type="submit">
+                    Add Income
+                </button>
+
+            </form>
 
         </section>
 
@@ -46,7 +130,8 @@
 
             <h2>Add New Expense</h2>
 
-            <form method="POST">
+            <form method="POST"
+                  action="/add_expense">
 
                 <label>Expense Name</label>
 
@@ -62,6 +147,7 @@
                        name="amount"
                        placeholder="Example: 150"
                        step="0.01"
+                       min="0"
                        required>
 
 
@@ -69,21 +155,37 @@
 
                 <select name="category" required>
 
-                    <option value="">Select Category</option>
+                    <option value="">
+                        Select Category
+                    </option>
 
-                    <option value="Food">Food</option>
+                    <option value="Food">
+                        Food
+                    </option>
 
-                    <option value="Travel">Travel</option>
+                    <option value="Travel">
+                        Travel
+                    </option>
 
-                    <option value="Shopping">Shopping</option>
+                    <option value="Shopping">
+                        Shopping
+                    </option>
 
-                    <option value="Education">Education</option>
+                    <option value="Education">
+                        Education
+                    </option>
 
-                    <option value="Bills">Bills</option>
+                    <option value="Bills">
+                        Bills
+                    </option>
 
-                    <option value="Entertainment">Entertainment</option>
+                    <option value="Entertainment">
+                        Entertainment
+                    </option>
 
-                    <option value="Other">Other</option>
+                    <option value="Other">
+                        Other
+                    </option>
 
                 </select>
 
@@ -123,7 +225,7 @@
                     </h3>
 
                     <p>
-                        ₹{{ "%.2f"|format(category["total"]) }}
+                        ₹{{ "%.2f"|format(category["amount"]) }}
                     </p>
 
                 </div>
@@ -134,7 +236,9 @@
 
             {% else %}
 
-            <p>No category data available.</p>
+            <p>
+                No category data available.
+            </p>
 
             {% endif %}
 
@@ -152,12 +256,87 @@
         </section>
 
 
+        <!-- Income History -->
+
+        <section class="expense-list">
+
+            <h2>Income History</h2>
+
+            {% if incomes %}
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>Income</th>
+
+                        <th>Amount</th>
+
+                        <th>Date</th>
+
+                        <th>Action</th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    {% for income in incomes %}
+
+                    <tr>
+
+                        <td>
+                            {{ income["income_name"] }}
+                        </td>
+
+                        <td>
+                            ₹{{ "%.2f"|format(income["amount"]) }}
+                        </td>
+
+                        <td>
+                            {{ income["income_date"] }}
+                        </td>
+
+                        <td>
+
+                            <a href="/delete_income/{{ income['id'] }}"
+                               class="delete-button"
+                               onclick="return confirm('Are you sure you want to delete this income?');">
+
+                                Delete
+
+                            </a>
+
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+            {% else %}
+
+            <p>
+                No income added yet.
+            </p>
+
+            {% endif %}
+
+        </section>
+
+
         <!-- Expense History -->
 
         <section class="expense-list">
 
             <h2>Expense History</h2>
-
 
             {% if expenses %}
 
@@ -206,10 +385,12 @@
 
                         <td>
 
-                            <a href="/delete/{{ expense['id'] }}"
+                            <a href="/delete_expense/{{ expense['id'] }}"
                                class="delete-button"
                                onclick="return confirm('Are you sure you want to delete this expense?');">
+
                                 Delete
+
                             </a>
 
                         </td>
@@ -224,7 +405,9 @@
 
             {% else %}
 
-            <p>No expenses added yet.</p>
+            <p>
+                No expenses added yet.
+            </p>
 
             {% endif %}
 
@@ -237,7 +420,9 @@
 
     <footer>
 
-        <p>© 2026 Personal Expense Tracker</p>
+        <p>
+            © 2026 Personal Expense Tracker
+        </p>
 
     </footer>
 
@@ -247,71 +432,86 @@
     <script>
 
         const categoryLabels = [
+
             {% for category in category_expenses %}
+
                 "{{ category['category'] }}",
+
             {% endfor %}
+
         ];
 
 
         const categoryAmounts = [
+
             {% for category in category_expenses %}
-                {{ category['total'] }},
+
+                {{ category['amount'] }},
+
             {% endfor %}
+
         ];
 
 
-        const ctx = document
-            .getElementById("expenseChart")
-            .getContext("2d");
+        const chartElement =
+            document.getElementById("expenseChart");
 
 
-        new Chart(ctx, {
+        if (chartElement) {
 
-            type: "bar",
+            const ctx =
+                chartElement.getContext("2d");
 
-            data: {
 
-                labels: categoryLabels,
+            new Chart(ctx, {
 
-                datasets: [{
+                type: "bar",
 
-                    label: "Amount Spent",
+                data: {
 
-                    data: categoryAmounts,
+                    labels: categoryLabels,
 
-                    borderWidth: 1
+                    datasets: [{
 
-                }]
+                        label: "Amount Spent",
 
-            },
+                        data: categoryAmounts,
 
-            options: {
+                        borderWidth: 1
 
-                responsive: true,
+                    }]
 
-                scales: {
+                },
 
-                    y: {
+                options: {
 
-                        beginAtZero: true,
+                    responsive: true,
 
-                        title: {
+                    scales: {
 
-                            display: true,
+                        y: {
 
-                            text: "Amount (₹)"
+                            beginAtZero: true,
 
-                        }
+                            title: {
 
-                    },
+                                display: true,
 
-                    x: {
+                                text: "Amount (₹)"
 
-                        title: {
+                            }
 
-                            display: true,
+                        },
 
-                            text: "Category"
+                        x: {
+
+                            title: {
+
+                                display: true,
+
+                                text: "Category"
+
+                            }
 
                         }
 
@@ -319,9 +519,9 @@
 
                 }
 
-            }
+            });
 
-        });
+        }
 
     </script>
 
