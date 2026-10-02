@@ -1,89 +1,168 @@
-from flask import Flask, render_template, request, redirect
-import sqlite3
-import database
+from flask import Flask, render_template, request, redirect, jsonify, make_response
+import firebase_admin
+from firebase_admin import credentials, auth, firestore
+
 
 app = Flask(__name__)
 
 
-def get_db_connection():
-    connection = sqlite3.connect("expenses.db")
-    connection.row_factory = sqlite3.Row
-    return connection
+# -----------------------------------
+# Firebase Admin SDK
+# -----------------------------------
+
+cred = credentials.Certificate(
+    "firebase-service-account.json"
+)
+
+firebase_admin.initialize_app(cred)
+
+db = firestore.client()
 
 
-@app.route("/", methods=["GET", "POST"])
+# -----------------------------------
+# Check logged-in user
+# -----------------------------------
+
+def get_logged_in_user():
+
+    user_id = request.cookies.get("user_id")
+
+    if not user_id:
+        return None
+
+    try:
+        user = auth.get_user(user_id)
+        return user
+
+    except Exception:
+        return None
+
+
+# -----------------------------------
+# Home / Expense Dashboard
+# -----------------------------------
+
+@app.route("/")
 def home():
 
-    if request.method == "POST":
+    user = get_logged_in_user()
 
-        expense_name = request.form["expense_name"]
-        amount = request.form["amount"]
-        category = request.form["category"]
-        expense_date = request.form["expense_date"]
-
-        connection = get_db_connection()
-
-        connection.execute("""
-            INSERT INTO expenses
-            (expense_name, amount, category, expense_date)
-            VALUES (?, ?, ?, ?)
-        """, (expense_name, amount, category, expense_date))
-
-        connection.commit()
-        connection.close()
-
-        return redirect("/")
-
-
-    connection = get_db_connection()
-
-
-    expenses = connection.execute("""
-        SELECT * FROM expenses
-        ORDER BY expense_date DESC, id DESC
-    """).fetchall()
-
-
-    total_expense = connection.execute("""
-        SELECT COALESCE(SUM(amount), 0)
-        FROM expenses
-    """).fetchone()[0]
-
-
-    category_expenses = connection.execute("""
-        SELECT category, SUM(amount) AS total
-        FROM expenses
-        GROUP BY category
-        ORDER BY total DESC
-    """).fetchall()
-
-
-    connection.close()
-
+    if not user:
+        return redirect("/login")
 
     return render_template(
         "index.html",
-        expenses=expenses,
-        total_expense=total_expense,
-        category_expenses=category_expenses
+        expenses=[],
+        total_expense=0,
+        category_expenses=[]
     )
 
 
-@app.route("/delete/<int:id>")
-def delete_expense(id):
+# -----------------------------------
+# Register
+# -----------------------------------
 
-    connection = get_db_connection()
+@app.route("/register")
+def register():
 
-    connection.execute(
-        "DELETE FROM expenses WHERE id = ?",
-        (id,)
+    return render_template("register.html")
+
+
+# -----------------------------------
+# Login
+# -----------------------------------
+
+@app.route("/login")
+def login():
+
+    user = get_logged_in_user()
+
+    if user:
+        return redirect("/")
+
+    return render_template("login.html")
+
+
+# -----------------------------------
+# Firebase Session Login
+# -----------------------------------
+
+@app.route("/sessionLogin", methods=["POST"])
+def session_login():
+
+    data = request.get_json()
+
+    if not data:
+        return jsonify({
+            "success": False,
+            "message": "No data received"
+        }), 400
+
+    id_token = data.get("idToken")
+
+    if not id_token:
+        return jsonify({
+            "success": False,
+            "message": "ID token is missing"
+        }), 400
+
+    try:
+
+        decoded_token = auth.verify_id_token(id_token)
+
+        uid = decoded_token["uid"]
+
+        response = make_response(
+            jsonify({
+                "success": True,
+                "message": "Login successful"
+            })
+        )
+
+        response.set_cookie(
+            "user_id",
+            uid,
+            httponly=True,
+            secure=False,
+            samesite="Lax"
+        )
+
+        return response
+
+    except Exception as error:
+
+        print("Firebase login error:")
+        print(error)
+
+        return jsonify({
+            "success": False,
+            "message": "Invalid Firebase token"
+        }), 401
+
+
+# -----------------------------------
+# Logout
+# -----------------------------------
+
+@app.route("/logout")
+def logout():
+
+    response = make_response(
+        redirect("/login")
     )
 
-    connection.commit()
-    connection.close()
+    response.delete_cookie("user_id")
 
-    return redirect("/")
+    return response
 
+
+# -----------------------------------
+# Run Flask
+# -----------------------------------
 
 if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False)
+
+    app.run(
+        debug=True,
+        use_reloader=False
+    )
