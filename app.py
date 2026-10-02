@@ -1,30 +1,37 @@
 from flask import Flask, render_template, request, redirect, jsonify, make_response
+import os
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
 
-
 app = Flask(__name__)
 
-
-# -----------------------------------
+# --------------------------------------------------
 # Firebase Admin SDK
-# -----------------------------------
+# --------------------------------------------------
 
-cred = credentials.Certificate(
-    "firebase-service-account.json"
-)
+# Render Secret File path
+render_secret_file = "/etc/secrets/firebase-service-account.json"
+
+# Local development file
+local_secret_file = "firebase-service-account.json"
+
+if os.path.exists(render_secret_file):
+    # Running on Render
+    cred = credentials.Certificate(render_secret_file)
+else:
+    # Running locally
+    cred = credentials.Certificate(local_secret_file)
 
 firebase_admin.initialize_app(cred)
 
 db = firestore.client()
 
 
-# -----------------------------------
+# --------------------------------------------------
 # Check logged-in user
-# -----------------------------------
+# --------------------------------------------------
 
 def get_logged_in_user():
-
     user_id = request.cookies.get("user_id")
 
     if not user_id:
@@ -33,18 +40,16 @@ def get_logged_in_user():
     try:
         user = auth.get_user(user_id)
         return user
-
     except Exception:
         return None
 
 
-# -----------------------------------
+# --------------------------------------------------
 # Home / Expense Dashboard
-# -----------------------------------
+# --------------------------------------------------
 
 @app.route("/")
 def home():
-
     user = get_logged_in_user()
 
     if not user:
@@ -58,23 +63,21 @@ def home():
     )
 
 
-# -----------------------------------
+# --------------------------------------------------
 # Register
-# -----------------------------------
+# --------------------------------------------------
 
 @app.route("/register")
 def register():
-
     return render_template("register.html")
 
 
-# -----------------------------------
+# --------------------------------------------------
 # Login
-# -----------------------------------
+# --------------------------------------------------
 
 @app.route("/login")
 def login():
-
     user = get_logged_in_user()
 
     if user:
@@ -83,9 +86,9 @@ def login():
     return render_template("login.html")
 
 
-# -----------------------------------
+# --------------------------------------------------
 # Firebase Session Login
-# -----------------------------------
+# --------------------------------------------------
 
 @app.route("/sessionLogin", methods=["POST"])
 def session_login():
@@ -123,7 +126,7 @@ def session_login():
             "user_id",
             uid,
             httponly=True,
-            secure=False,
+            secure=True if os.path.exists(render_secret_file) else False,
             samesite="Lax"
         )
 
@@ -140,9 +143,9 @@ def session_login():
         }), 401
 
 
-# -----------------------------------
+# --------------------------------------------------
 # Logout
-# -----------------------------------
+# --------------------------------------------------
 
 @app.route("/logout")
 def logout():
@@ -156,9 +159,9 @@ def logout():
     return response
 
 
-# -----------------------------------
-# Run Flask
-# -----------------------------------
+# --------------------------------------------------
+# Run App
+# --------------------------------------------------
 
 if __name__ == "__main__":
 
